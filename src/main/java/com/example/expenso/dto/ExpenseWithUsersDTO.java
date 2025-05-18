@@ -9,5 +9,6 @@ public class ExpenseWithUsersDTO {
     private Long expenseId;
     private String description;
     private Double amount;
+    private AssignedUsersBudgetDTO createdBy;
     private List<AssignedUsersExpenseDTO> assignedUsers;
 }

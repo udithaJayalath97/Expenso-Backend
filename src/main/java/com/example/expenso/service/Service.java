@@ -73,6 +73,8 @@ public class Service {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
+        AssignedUsersBudgetDTO budgetCreatedBy = new AssignedUsersBudgetDTO(user.getId(),user.getUsername(),user.getMobileNumber());
+
         // 2. Get all BudgetUser entries where this user is assigned
         List<BudgetUser> userBudgetUsers = budgetUserRepository.findByUserId(userId);
 
@@ -101,6 +103,12 @@ public class Service {
 
             for (Expense expense : expenses) {
                 // 3c. Get all assigned users for this expense
+                User expenseCreatedUser = expense.getCreatedBy();
+                AssignedUsersBudgetDTO expenseCreatedBy = new AssignedUsersBudgetDTO(
+                        expenseCreatedUser.getId(),
+                        expenseCreatedUser.getUsername(),
+                        expenseCreatedUser.getMobileNumber()
+                );
                 List<ExpenseUser> assignedExpenseUsers = expenseUserRepository.findByExpense_ExpenseId(expense.getExpenseId());
                 List<AssignedUsersExpenseDTO> assignedUsersExpenseDTOs = assignedExpenseUsers.stream()
                         .map(eu -> {
@@ -118,6 +126,7 @@ public class Service {
                         expense.getExpenseId(),
                         expense.getDescription(),
                         expense.getAmount(),
+                        expenseCreatedBy,
                         assignedUsersExpenseDTOs
                 ));
             }
@@ -127,6 +136,7 @@ public class Service {
                     budget.getId(),
                     budget.getName(),
                     budget.getTotalAmount(),
+                    budgetCreatedBy,
                     assignedUsersBudgetDTOs,
                     expenseDTOs
             ));
@@ -189,6 +199,15 @@ public class Service {
         expense.setBudget(budget);
 
         expenseRepository.save(expense);
+
+        Double currentTotal = budget.getTotalAmount();
+        if (currentTotal == null) {
+            currentTotal = 0.0;
+        }
+        budget.setTotalAmount(currentTotal + request.getAmount());
+
+        // Save updated budget
+        budgetRepository.save(budget);
 
         Double splitAmount = request.getAmount() / request.getUserIds().size();
 
