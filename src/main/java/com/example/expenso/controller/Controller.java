@@ -42,8 +42,8 @@ public class Controller {
     @PostMapping("/budget/create")
     public ResponseEntity<?> createBudget(@RequestBody CreateBudgetRequestDTO request) {
         try {
-            Budget savedBudget = service.createBudget(request);
-            return ResponseEntity.ok(savedBudget);
+            service.createBudget(request);
+            return ResponseEntity.ok("Budget created successfully");
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         } catch (RuntimeException e) {

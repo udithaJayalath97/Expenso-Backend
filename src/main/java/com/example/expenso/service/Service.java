@@ -153,7 +153,7 @@ public class Service {
 
 
 
-    public Budget createBudget(CreateBudgetRequestDTO request) {
+    public void createBudget(CreateBudgetRequestDTO request) {
         if (request.getName() == null || request.getName().trim().isEmpty() || request.getUserId() == null) {
             throw new IllegalArgumentException("Name and user ID are required");
         }
@@ -162,7 +162,7 @@ public class Service {
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
         Budget budget = new Budget(request.getName(), user);
-        Budget budgetResponse = budgetRepository.save(budget);
+        budgetRepository.save(budget);
 
         BudgetUser creatorBudgetUser = new BudgetUser();
         creatorBudgetUser.setBudget(budget);
@@ -182,7 +182,6 @@ public class Service {
             }
         }
 
-        return budgetResponse;
     }
 
     public void createExpense(CreateExpenseRequestDTO request) {
