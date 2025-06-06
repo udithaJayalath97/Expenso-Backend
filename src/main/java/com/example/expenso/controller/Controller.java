@@ -1,12 +1,13 @@
 package com.example.expenso.controller;
-
 import com.example.expenso.dto.*;
-import com.example.expenso.model.Budget;
 import com.example.expenso.service.Service;
+import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("api")
@@ -24,6 +25,22 @@ public class Controller {
     public ResponseEntity<String> registerUser(@RequestBody UserDTO userDTO) {
         String response = service.registerUser(userDTO);
         return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("users")
+    public List<AssignedUsersBudgetDTO> getAllUsers() {
+        return service.getAllUsers();
+    }
+
+    @GetMapping("/{userId}/budgets")
+    public ResponseEntity<UserResponseDTO> getUserData(@PathVariable Long userId) {
+        try {
+            UserResponseDTO userResponseDTO = service.getUserDataByUserId(userId);
+            return ResponseEntity.ok(userResponseDTO);
+        } catch (RuntimeException e) {
+            // If user not found or other exception, respond with 404 or appropriate error
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        }
     }
 
     @PostMapping("users/login")
@@ -63,4 +80,13 @@ public class Controller {
         }
     }
 
+    @DeleteMapping("delete/budget/{id}")
+    public ResponseEntity<String> deleteBudget(@PathVariable Long id) {
+        try {
+            service.deleteBudget(id); // Call service to delete the budget
+            return ResponseEntity.ok("Budget and associated records deleted successfully");
+        } catch (Exception e) {
+            return ResponseEntity.status(404).body("Budget not found");
+        }
+    }
 }

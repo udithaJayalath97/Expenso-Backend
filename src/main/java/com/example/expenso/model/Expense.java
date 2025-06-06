@@ -28,6 +28,8 @@ public class Expense {
     @Column(name = "amount")
     private Double amount;
 
+    @OneToMany(mappedBy = "expense", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<ExpenseUser> expenseUsers;
 
     @ManyToOne
     @JoinColumn(name = "created_by")

@@ -9,4 +9,5 @@ import java.util.List;
 public interface BudgetUserRepository extends JpaRepository<BudgetUser, Long> {
     List<BudgetUser> findByUserId(Long userId);
     List<BudgetUser> findByBudgetId(Long budgetId);
+
 }

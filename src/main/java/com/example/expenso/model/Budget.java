@@ -5,6 +5,8 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
+
 
 @Entity
 @Table(name = "budget")
@@ -27,6 +29,13 @@ public class Budget {
     @JoinColumn(name = "user_id")
     private User user;
 
+    // Cascade delete the related expenses when the budget is deleted
+    @OneToMany(mappedBy = "budget", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<Expense> expenses;
+
+    // Cascade delete the related budget users when the budget is deleted
+    @OneToMany(mappedBy = "budget", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<BudgetUser> budgetUsers;
 
     public Budget(String name, User user) {
         this.name = name;

@@ -3,12 +3,11 @@ package com.example.expenso.service;
 import com.example.expenso.dto.*;
 import com.example.expenso.model.*;
 import com.example.expenso.repository.*;
+import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 import java.util.stream.Collectors;
 
 
@@ -29,6 +28,19 @@ public class Service {
 
     @Autowired
     private BudgetUserRepository budgetUserRepository;
+
+    public List<AssignedUsersBudgetDTO> getAllUsers() {
+        return userRepository.findAll().stream()
+                .map(user -> new AssignedUsersBudgetDTO(user.getId(), user.getUsername(), user.getMobileNumber()))
+                .collect(Collectors.toList());
+    }
+    @Transactional
+    public void deleteBudget(Long id) {
+        if (!budgetRepository.existsById(id)) {
+            throw new RuntimeException("Budget not found with ID: " + id);
+        }
+        budgetRepository.deleteById(id); // Delete the budget, cascade deletes related entities
+    }
 
     public String registerUser(UserDTO userDTO) {
         Optional<User> existingUser = userRepository.findByMobileNumber(userDTO.getMobileNumber());
@@ -69,21 +81,37 @@ public class Service {
     }
 
     public UserResponseDTO getUserDataByUserId(Long userId) {
-        // 1. Get the User entity
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
-        AssignedUsersBudgetDTO budgetCreatedBy = new AssignedUsersBudgetDTO(user.getId(),user.getUsername(),user.getMobileNumber());
-
-        // 2. Get all BudgetUser entries where this user is assigned
+        // Budgets where user is assigned via BudgetUser
         List<BudgetUser> userBudgetUsers = budgetUserRepository.findByUserId(userId);
+        List<Budget> assignedBudgets = userBudgetUsers.stream()
+                .map(BudgetUser::getBudget)
+                .toList();
+
+        // Budgets where user is creator (owner)
+        List<Budget> createdBudgets = budgetRepository.findByUserId(userId);
+
+        // Combine budgets and remove duplicates (by budget id)
+        Map<Long, Budget> combinedBudgetsMap = new HashMap<>();
+
+        for (Budget b : assignedBudgets) combinedBudgetsMap.put(b.getId(), b);
+        for (Budget b : createdBudgets) combinedBudgetsMap.put(b.getId(), b);
+
+        List<Budget> combinedBudgets = new ArrayList<>(combinedBudgetsMap.values());
 
         List<BudgetWithUsersAndExpensesDTO> budgetDTOs = new ArrayList<>();
 
-        for (BudgetUser budgetUser : userBudgetUsers) {
-            Budget budget = budgetUser.getBudget();
+        for (Budget budget : combinedBudgets) {
+            User budgetCreatedUser = budget.getUser();
+            AssignedUsersBudgetDTO budgetCreatedBy = new AssignedUsersBudgetDTO(
+                    budgetCreatedUser.getId(),
+                    budgetCreatedUser.getUsername(),
+                    budgetCreatedUser.getMobileNumber()
+            );
 
-            // 3a. Get all users assigned to this budget
+            // Assigned users for budget
             List<BudgetUser> assignedBudgetUsers = budgetUserRepository.findByBudgetId(budget.getId());
             List<AssignedUsersBudgetDTO> assignedUsersBudgetDTOs = assignedBudgetUsers.stream()
                     .map(bu -> {
@@ -96,19 +124,18 @@ public class Service {
                     })
                     .collect(Collectors.toList());
 
-            // 3b. Get all expenses for this budget
+            // Expenses for budget
             List<Expense> expenses = expenseRepository.findByBudgetId(budget.getId());
-
             List<ExpenseWithUsersDTO> expenseDTOs = new ArrayList<>();
 
             for (Expense expense : expenses) {
-                // 3c. Get all assigned users for this expense
                 User expenseCreatedUser = expense.getCreatedBy();
                 AssignedUsersBudgetDTO expenseCreatedBy = new AssignedUsersBudgetDTO(
                         expenseCreatedUser.getId(),
                         expenseCreatedUser.getUsername(),
                         expenseCreatedUser.getMobileNumber()
                 );
+
                 List<ExpenseUser> assignedExpenseUsers = expenseUserRepository.findByExpense_ExpenseId(expense.getExpenseId());
                 List<AssignedUsersExpenseDTO> assignedUsersExpenseDTOs = assignedExpenseUsers.stream()
                         .map(eu -> {
@@ -131,7 +158,6 @@ public class Service {
                 ));
             }
 
-            // Add this budget and its nested data to the list
             budgetDTOs.add(new BudgetWithUsersAndExpensesDTO(
                     budget.getId(),
                     budget.getName(),
@@ -142,7 +168,6 @@ public class Service {
             ));
         }
 
-        // Build and return the user response DTO with all nested data
         return new UserResponseDTO(
                 user.getId(),
                 user.getUsername(),
@@ -150,6 +175,7 @@ public class Service {
                 budgetDTOs
         );
     }
+
 
 
 
@@ -164,11 +190,11 @@ public class Service {
         Budget budget = new Budget(request.getName(), user);
         budgetRepository.save(budget);
 
-        BudgetUser creatorBudgetUser = new BudgetUser();
-        creatorBudgetUser.setBudget(budget);
-        creatorBudgetUser.setUser(user);
-
-        budgetUserRepository.save(creatorBudgetUser);
+//        BudgetUser creatorBudgetUser = new BudgetUser();
+//        creatorBudgetUser.setBudget(budget);
+//        creatorBudgetUser.setUser(user);
+//
+//        budgetUserRepository.save(creatorBudgetUser);
 
         if (request.getUserIds() != null) {
             for (Long userId : request.getUserIds()) {
