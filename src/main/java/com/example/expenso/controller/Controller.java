@@ -1,7 +1,6 @@
 package com.example.expenso.controller;
 import com.example.expenso.dto.*;
 import com.example.expenso.service.Service;
-import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -54,7 +53,15 @@ public class Controller {
         }
     }
 
-
+    @PostMapping("/notifications/mark-read/{notificationId}")
+    public ResponseEntity<String> markAsRead(@PathVariable Long notificationId) {
+        try {
+            service.markAsRead(notificationId); // Mark the notification as read
+            return ResponseEntity.ok("Notification marked as read");
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body("Error marking notification as read: " + e.getMessage());
+        }
+    }
 
     @PostMapping("/budget/create")
     public ResponseEntity<?> createBudget(@RequestBody CreateBudgetRequestDTO request) {
@@ -87,6 +94,16 @@ public class Controller {
             return ResponseEntity.ok("Budget and associated records deleted successfully");
         } catch (Exception e) {
             return ResponseEntity.status(404).body("Budget not found");
+        }
+    }
+
+    @DeleteMapping("delete/expense/{expenseId}")
+    public ResponseEntity<String> deleteExpense(@PathVariable Long expenseId) {
+        try {
+            service.deleteExpenseAndUsers(expenseId);
+            return ResponseEntity.ok("Expense and related Expense Users deleted successfully.");
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body("Error deleting expense: " + e.getMessage());
         }
     }
 }

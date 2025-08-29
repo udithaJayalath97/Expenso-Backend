@@ -7,6 +7,8 @@ import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -29,6 +31,16 @@ public class Service {
     @Autowired
     private BudgetUserRepository budgetUserRepository;
 
+    @Autowired
+    private ActivityRepository activityRepository;
+
+    @Autowired
+    private NotificationRepository notificationRepository;
+
+    LocalDateTime now = LocalDateTime.now();
+    DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd 'at' HH:mm");
+    String formattedDateTime = now.format(formatter);
+
     public List<AssignedUsersBudgetDTO> getAllUsers() {
         return userRepository.findAll().stream()
                 .map(user -> new AssignedUsersBudgetDTO(user.getId(), user.getUsername(), user.getMobileNumber()))
@@ -39,7 +51,40 @@ public class Service {
         if (!budgetRepository.existsById(id)) {
             throw new RuntimeException("Budget not found with ID: " + id);
         }
-        budgetRepository.deleteById(id); // Delete the budget, cascade deletes related entities
+        budgetRepository.deleteById(id);
+    }
+
+
+    @Transactional
+    public void deleteExpenseAndUsers(Long expenseId) {
+        // Find the Expense first to retrieve the related Budget
+        Expense expense = expenseRepository.findById(expenseId)
+                .orElseThrow(() -> new RuntimeException("Expense not found"));
+
+        // Subtract the amount of the expense from the associated Budget's total amount
+        Budget budget = expense.getBudget();  // Get the related Budget
+        if (budget != null) {
+            // Update the totalAmount of the budget
+            budget.setTotalAmount(budget.getTotalAmount() - expense.getAmount());
+            budgetRepository.save(budget); // Save the updated budget
+        }
+
+
+
+        // Delete the ExpenseUser records first
+        expenseUserRepository.deleteByExpenseExpenseId(expenseId);
+
+        // Then, delete the Expense record
+        expenseRepository.deleteById(expenseId);
+    }
+
+    public void createNotification(Long userId, String message) {
+        Notification notification = new Notification();
+        notification.setUserId(userId);
+        notification.setMessage(message);
+        notification.setReadStatus(false);
+        notification.setCreatedAt(LocalDateTime.now());
+        notificationRepository.save(notification);
     }
 
     public String registerUser(UserDTO userDTO) {
@@ -83,6 +128,23 @@ public class Service {
     public UserResponseDTO getUserDataByUserId(Long userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
+
+        List<Activity> activities = activityRepository.findByUserId(userId);
+        List<ActivityDTO> activityDTOs = new ArrayList<>();
+
+        for (Activity activity : activities) {
+            // Map Activity entity to ActivityDTO
+            ActivityDTO activityDTO = new ActivityDTO(activity.getDescription());
+            activityDTOs.add(activityDTO);
+        }
+
+        List<Notification> notifications = notificationRepository.findByUserId(userId);
+        List<NotificationDTO> notificationDTOs = new ArrayList<>();
+
+        for (Notification notification : notifications) {
+            NotificationDTO notificationDTO = new NotificationDTO(notification.getId(),notification.getUserId(),notification.getMessage(),notification.isReadStatus(),notification.getCreatedAt());
+            notificationDTOs.add(notificationDTO);
+        }
 
         // Budgets where user is assigned via BudgetUser
         List<BudgetUser> userBudgetUsers = budgetUserRepository.findByUserId(userId);
@@ -172,12 +234,24 @@ public class Service {
                 user.getId(),
                 user.getUsername(),
                 user.getMobileNumber(),
-                budgetDTOs
+                budgetDTOs,
+                activityDTOs,
+                notificationDTOs
         );
     }
 
 
+    public Notification markAsRead(Long notificationId) throws Exception {
+        Optional<Notification> notificationOpt = notificationRepository.findById(notificationId);
 
+        if (notificationOpt.isPresent()) {
+            Notification notification = notificationOpt.get();
+            notification.setReadStatus(true);  // Set the notification as read
+            return notificationRepository.save(notification);  // Save the updated notification back to the database
+        } else {
+            throw new Exception("Notification not found");
+        }
+    }
 
     public void createBudget(CreateBudgetRequestDTO request) {
         if (request.getName() == null || request.getName().trim().isEmpty() || request.getUserId() == null) {
@@ -189,12 +263,12 @@ public class Service {
 
         Budget budget = new Budget(request.getName(), user);
         budgetRepository.save(budget);
+        Activity activity = new Activity();
+        activity.setUserId(user.getId());
+        activity.setDescription("You created budget : "+budget.getName()+" on "+formattedDateTime);
 
-//        BudgetUser creatorBudgetUser = new BudgetUser();
-//        creatorBudgetUser.setBudget(budget);
-//        creatorBudgetUser.setUser(user);
-//
-//        budgetUserRepository.save(creatorBudgetUser);
+        activityRepository.save(activity);
+
 
         if (request.getUserIds() != null) {
             for (Long userId : request.getUserIds()) {
@@ -205,6 +279,7 @@ public class Service {
                 budgetUser.setBudget(budget);
                 budgetUser.setUser(users);
                 budgetUserRepository.save(budgetUser);
+                createNotification(userId,"You were added to the budget: "+budget.getName()+" by "+user.getUsername()+" on "+formattedDateTime);
             }
         }
 
@@ -225,6 +300,11 @@ public class Service {
 
         expenseRepository.save(expense);
 
+        Activity activity = new Activity();
+        activity.setUserId(createdBy.getId());
+        activity.setDescription("You created expense: "+request.getDescription()+" on "+formattedDateTime);
+        activityRepository.save(activity);
+
         Double currentTotal = budget.getTotalAmount();
         if (currentTotal == null) {
             currentTotal = 0.0;
@@ -233,6 +313,7 @@ public class Service {
 
         // Save updated budget
         budgetRepository.save(budget);
+
 
         Double splitAmount = request.getAmount() / request.getUserIds().size();
 
@@ -246,6 +327,9 @@ public class Service {
             expenseUser.setSplitAmount(splitAmount);
 
             expenseUserRepository.save(expenseUser);
+            createNotification(userId,"You were added to the expense in budget "+budget.getName()+" : "+request.getDescription()+" by "+createdBy.getUsername()+" on "+formattedDateTime+". \nTotal amount of Expense: "+request.getAmount()+".\nYour contribution: "+splitAmount+".");
         }
     }
+
+
 }

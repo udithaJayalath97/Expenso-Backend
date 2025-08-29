@@ -10,4 +10,6 @@ public class UserResponseDTO {
     private String username;
     private String mobileNumber;
     private List<BudgetWithUsersAndExpensesDTO> budgets;
+    private List<ActivityDTO> activity;
+    private List<NotificationDTO> notifications;
 }

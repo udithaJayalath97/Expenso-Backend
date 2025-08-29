@@ -5,10 +5,6 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.ToString;
-
-
-import java.math.BigDecimal;
-import java.util.ArrayList;
 import java.util.List;
 
 @Entity
@@ -40,5 +36,7 @@ public class Expense {
     @JoinColumn(name = "budget_id")
     @ToString.Exclude
     private Budget budget;
+
+
 
 }

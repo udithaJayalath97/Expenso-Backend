@@ -1,10 +1,10 @@
 package com.example.expenso.dto;
 
+import lombok.AllArgsConstructor;
 import lombok.Data;
 
+@AllArgsConstructor
 @Data
-public class LoanDTO {
+public class ActivityDTO {
     private String description;
-    private Double amount;
-    private Long userId;
 }
